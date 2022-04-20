@@ -89,7 +89,7 @@ template void check_type_assumptions<long double>();
 template void check_type_assumptions<Float16>();
 template void check_type_assumptions<BFloat16>();
 #ifndef SANDSTONE_FLOAT16_EMULATED
-template void check_type_assumptions<__fp16>();
+template void check_type_assumptions<_Float16>();
 #endif
 #ifdef __SIZEOF_FLOAT128__
 template void check_type_assumptions<__float128>();

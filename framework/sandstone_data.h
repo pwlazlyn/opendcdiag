@@ -396,7 +396,7 @@ template<> struct TypeToDataType<Float128> : TypeToDataType_helper<Float128Data>
 template<> struct TypeToDataType<__float128> : TypeToDataType_helper<Float128Data> {};
 #endif
 #ifndef SANDSTONE_FLOAT16_EMULATED
-template<> struct TypeToDataType<__fp16> : TypeToDataType_helper<Float16Data> {};
+template<> struct TypeToDataType<_Float16> : TypeToDataType_helper<Float16Data> {};
 #endif
 
 static constexpr size_t type_real_size(DataType type)
