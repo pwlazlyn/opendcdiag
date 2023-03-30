@@ -16,6 +16,9 @@
 #include <map>
 #include <numeric>
 #include <vector>
+#include <random>
+
+#include <time.h>
 
 #include <assert.h>
 #include <errno.h>
@@ -174,6 +177,7 @@ enum {
     test_list_file_option,
     test_list_randomize_option,
     test_tests_option,
+    test_migration_time,
     timeout_option,
     total_retest_on_failure,
     ud_on_failure_option,
@@ -1282,6 +1286,20 @@ static void run_threads(const struct test *test)
     pthread_t pt[MAX_THREADS];
     pthread_attr_t thread_attr;
     int i;
+    struct timespec migration_ts;
+    std::vector<pid_t> pins;
+
+    auto migration_disabled = clock_gettime(CLOCK_REALTIME, &migration_ts) == -1;
+
+    migration_ts.tv_sec += 0;
+    migration_ts.tv_nsec += std::chrono::nanoseconds(sApp->data_migration_time).count();
+
+    cpu_set_t cpu_set;
+    CPU_ZERO(&cpu_set);
+    std::random_device randdev;
+    std::mt19937 randgen(randdev());
+
+    pins.resize(num_cpus());
 
     pthread_attr_init(&thread_attr);
     pthread_attr_setstacksize(&thread_attr, THREAD_STACK_SIZE);
@@ -1289,10 +1307,43 @@ static void run_threads(const struct test *test)
     current_test = test;
     for (i = 0; i < num_cpus(); i++) {
         pthread_create(&pt[i], &thread_attr, thread_runner, (void *) (uint64_t) i);
+        pins[i] = i;
     }
     /* wait for threads to end */
-    for (i = 0; i < num_cpus(); i++) {
-        pthread_join(pt[i], nullptr);
+    for (i = 0; i < num_cpus();) {
+        if (migration_disabled) {
+            pthread_join(pt[i], nullptr);
+        } else {
+            const auto status = pthread_timedjoin_np(pt[i], nullptr, &migration_ts);
+            //logging_printf(LOG_LEVEL_VERBOSE(2), "# timedjoin status = %i\n", status);
+            if (status == ETIMEDOUT) {
+                logging_printf(LOG_LEVEL_VERBOSE(2), "# Performing data migration...\n");
+
+                shuffle(std::begin(pins), std::end(pins), randgen);
+
+                for (int idx = i; idx < num_cpus(); ++idx) {
+                    const auto thread_idx = idx;
+                    const auto cpu_idx = pins[idx];
+
+                    logging_printf(LOG_LEVEL_VERBOSE(2), "     setting thread %i to cpu %i\n", thread_idx, cpu_info[cpu_idx].cpu_number);
+                    CPU_SET(cpu_info[cpu_idx].cpu_number, &cpu_set);
+                    pthread_setaffinity_np(pt[thread_idx], sizeof(cpu_set), &cpu_set);
+                    CPU_CLR(cpu_info[cpu_idx].cpu_number, &cpu_set);
+                }
+
+                migration_disabled = clock_gettime(CLOCK_REALTIME, &migration_ts) == -1;
+
+                migration_ts.tv_sec += 0;
+                migration_ts.tv_nsec += std::chrono::nanoseconds(sApp->data_migration_time).count();
+
+                continue;
+            }
+            //pthread_join(pt[i], nullptr);
+        }
+
+        //pthread_join(pt[i], nullptr);
+
+        i += 1;
     }
     current_test = nullptr;
 
@@ -3207,6 +3258,7 @@ int main(int argc, char **argv)
         { "test-range", required_argument, nullptr, test_index_range_option },
         { "test-list-randomize", no_argument, nullptr, test_list_randomize_option },
         { "test-time", required_argument, nullptr, 't' },   // repeated below
+        { "test-migration-time", required_argument, nullptr, test_migration_time},
         { "force-test-time", no_argument, nullptr, force_test_time_option },
         { "test-option", required_argument, nullptr, 'O'},
         { "threads", required_argument, nullptr, 'n' },
@@ -3502,6 +3554,10 @@ int main(int argc, char **argv)
 
         case test_delay_option:
             sApp->delay_between_tests = string_to_millisecs(optarg);
+            break;
+
+        case test_migration_time:
+            sApp->data_migration_time = string_to_millisecs(optarg);
             break;
 
         case test_tests_option:

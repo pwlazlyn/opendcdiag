@@ -21,6 +21,11 @@ LogicalProcessorSet ambient_logical_processor_set()
 
 bool pin_to_logical_processor(LogicalProcessor n, const char *thread_name)
 {
+    return pin_to_logical_processor(0, n, thread_name);
+}
+
+bool pin_to_logical_processor(pid_t who, LogicalProcessor n, const char *thread_name)
+{
     if (thread_name)
         prctl(PR_SET_NAME, thread_name);
     if (n == LogicalProcessor(-1))
@@ -30,10 +35,9 @@ bool pin_to_logical_processor(LogicalProcessor n, const char *thread_name)
     CPU_ZERO(&cpu_set);
     CPU_SET(int(n), &cpu_set);
 
-    if (sched_setaffinity(0, sizeof(cpu_set), &cpu_set)) {
+    if (sched_setaffinity(who, sizeof(cpu_set), &cpu_set)) {
         perror("sched_setaffinity");
         return false;
     }
     return true;
 }
-

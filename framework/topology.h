@@ -111,6 +111,7 @@ private:
 
 LogicalProcessorSet ambient_logical_processor_set();
 bool pin_to_logical_processor(LogicalProcessor, const char *thread_name = nullptr);
+bool pin_to_logical_processor(pid_t who, LogicalProcessor n, const char *thread_name = nullptr);
 
 void load_cpu_info(/*in/out*/ const LogicalProcessorSet &enabled_cpus);
 

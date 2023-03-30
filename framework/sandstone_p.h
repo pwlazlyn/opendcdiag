@@ -333,6 +333,7 @@ struct SandstoneApplication : public InterruptMonitor, public test_the_test_data
     Duration test_time = Duration::zero();
     Duration max_test_time = Duration::zero();
     Duration delay_between_tests = std::chrono::milliseconds(5);
+    Duration data_migration_time = std::chrono::milliseconds(20);
 
     std::unique_ptr<RandomEngineWrapper, RandomEngineDeleter> random_engine;
 
